@@ -1,0 +1,27 @@
+[project]
+name = "ticketflow"
+version = "0.1.0"
+description = "Real-time support-ticketing backend — Bave technical assessment"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52",
+    "sqlmodel>=0.0.39",
+    "alembic>=1.19.1",
+    "asyncpg>=0.31.0",
+    "pydantic-settings>=0.31.0",
+    "pwdlib[argon2]>=0.3.0",
+    "pyjwt>=2.13.0",
+    "redis>=8.1.0",
+    "httpx>=0.27",
+    "python-multipart>=0.0.32",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+]
+
+[tool.uv]
+package = false
