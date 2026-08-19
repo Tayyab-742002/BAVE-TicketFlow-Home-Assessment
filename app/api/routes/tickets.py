@@ -4,10 +4,17 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import and_, func, or_
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, RequireAgent, SessionDep
 from app.models.enums import TicketCategory, TicketPriority, TicketStatus, UserRole
 from app.models.ticket import Ticket
-from app.schemas.ticket import TicketCreate, TicketListResponse, TicketRead, TicketUpdate
+from app.schemas.ticket import (
+    TicketCreate,
+    TicketListResponse,
+    TicketRead,
+    TicketStatusUpdate,
+    TicketUpdate,
+)
+from app.services.ticket_service import InvalidStatusTransition, apply_status_transition
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -89,6 +96,25 @@ async def list_tickets(
 @router.get("/{ticket_id}", response_model=TicketRead)
 async def get_ticket(ticket_id: uuid.UUID, session: SessionDep, current_user: CurrentUser) -> Ticket:
     return await _get_owned_ticket(session, current_user, ticket_id)
+
+
+@router.patch("/{ticket_id}/status", response_model=TicketRead)
+async def change_ticket_status(
+    ticket_id: uuid.UUID, payload: TicketStatusUpdate, session: SessionDep, agent: RequireAgent
+) -> Ticket:
+    ticket = await session.get(Ticket, ticket_id)
+    if ticket is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
+
+    try:
+        apply_status_transition(ticket, payload.status)
+    except InvalidStatusTransition as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc))
+
+    session.add(ticket)
+    await session.commit()
+    await session.refresh(ticket)
+    return ticket
 
 
 @router.patch("/{ticket_id}", response_model=TicketRead)

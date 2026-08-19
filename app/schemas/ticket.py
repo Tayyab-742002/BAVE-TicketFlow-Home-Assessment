@@ -20,6 +20,10 @@ class TicketUpdate(BaseModel):
     priority: TicketPriority | None = None
 
 
+class TicketStatusUpdate(BaseModel):
+    status: TicketStatus
+
+
 class TicketRead(BaseModel):
     model_config = {"from_attributes": True}
 
