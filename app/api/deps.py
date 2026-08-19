@@ -4,15 +4,18 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt import ExpiredSignatureError, InvalidTokenError
+from redis.asyncio import Redis
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import TokenType, decode_token
+from app.db.redis import get_redis
 from app.db.session import get_session
 from app.models.enums import UserRole
 from app.models.ticket import Ticket
 from app.models.user import User
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+RedisDep = Annotated[Redis, Depends(get_redis)]
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
