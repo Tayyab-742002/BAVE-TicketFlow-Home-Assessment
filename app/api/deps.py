@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.security import TokenType, decode_token
 from app.db.session import get_session
 from app.models.enums import UserRole
+from app.models.ticket import Ticket
 from app.models.user import User
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
@@ -52,3 +53,19 @@ def require_role(*roles: UserRole):
 
 
 RequireAgent = Annotated[User, Depends(require_role(UserRole.AGENT))]
+
+
+async def get_visible_ticket(
+    ticket_id: uuid.UUID, session: SessionDep, current_user: CurrentUser
+) -> Ticket:
+    ticket = await session.get(Ticket, ticket_id)
+    if ticket is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
+    # Customers get a 404 (not 403) for tickets they don't own, so the API doesn't
+    # confirm/deny existence of tickets outside their access.
+    if current_user.role == UserRole.CUSTOMER and ticket.customer_id != current_user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
+    return ticket
+
+
+VisibleTicket = Annotated[Ticket, Depends(get_visible_ticket)]

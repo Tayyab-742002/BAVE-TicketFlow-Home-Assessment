@@ -1,10 +1,8 @@
-import uuid
-
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import and_, func, or_
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, RequireAgent, SessionDep
+from app.api.deps import CurrentUser, RequireAgent, SessionDep, VisibleTicket
 from app.models.enums import TicketCategory, TicketPriority, TicketStatus, UserRole
 from app.models.ticket import Ticket
 from app.schemas.ticket import (
@@ -17,19 +15,6 @@ from app.schemas.ticket import (
 from app.services.ticket_service import InvalidStatusTransition, apply_status_transition
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
-
-
-async def _get_owned_ticket(
-    session: SessionDep, current_user: CurrentUser, ticket_id: uuid.UUID
-) -> Ticket:
-    ticket = await session.get(Ticket, ticket_id)
-    if ticket is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
-    # Customers get a 404 (not 403) for tickets they don't own, so the API doesn't
-    # confirm/deny existence of tickets outside their access.
-    if current_user.role == UserRole.CUSTOMER and ticket.customer_id != current_user.id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
-    return ticket
 
 
 @router.post("", response_model=TicketRead, status_code=status.HTTP_201_CREATED)
@@ -94,18 +79,14 @@ async def list_tickets(
 
 
 @router.get("/{ticket_id}", response_model=TicketRead)
-async def get_ticket(ticket_id: uuid.UUID, session: SessionDep, current_user: CurrentUser) -> Ticket:
-    return await _get_owned_ticket(session, current_user, ticket_id)
+async def get_ticket(ticket: VisibleTicket) -> Ticket:
+    return ticket
 
 
 @router.patch("/{ticket_id}/status", response_model=TicketRead)
 async def change_ticket_status(
-    ticket_id: uuid.UUID, payload: TicketStatusUpdate, session: SessionDep, agent: RequireAgent
+    payload: TicketStatusUpdate, ticket: VisibleTicket, session: SessionDep, agent: RequireAgent
 ) -> Ticket:
-    ticket = await session.get(Ticket, ticket_id)
-    if ticket is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
-
     try:
         apply_status_transition(ticket, payload.status)
     except InvalidStatusTransition as exc:
@@ -119,14 +100,13 @@ async def change_ticket_status(
 
 @router.patch("/{ticket_id}", response_model=TicketRead)
 async def update_ticket(
-    ticket_id: uuid.UUID, payload: TicketUpdate, session: SessionDep, current_user: CurrentUser
+    payload: TicketUpdate, ticket: VisibleTicket, session: SessionDep, current_user: CurrentUser
 ) -> Ticket:
     if current_user.role != UserRole.CUSTOMER:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Only the customer who owns a ticket can edit it"
         )
 
-    ticket = await _get_owned_ticket(session, current_user, ticket_id)
     if ticket.status != TicketStatus.OPEN:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ticket can only be edited while Open")
 
@@ -140,13 +120,12 @@ async def update_ticket(
 
 
 @router.delete("/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_ticket(ticket_id: uuid.UUID, session: SessionDep, current_user: CurrentUser) -> None:
+async def delete_ticket(ticket: VisibleTicket, session: SessionDep, current_user: CurrentUser) -> None:
     if current_user.role != UserRole.CUSTOMER:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Only the customer who owns a ticket can delete it"
         )
 
-    ticket = await _get_owned_ticket(session, current_user, ticket_id)
     if ticket.status != TicketStatus.OPEN:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ticket can only be deleted while Open")
 
