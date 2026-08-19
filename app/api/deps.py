@@ -1,8 +1,54 @@
+import uuid
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jwt import ExpiredSignatureError, InvalidTokenError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.security import TokenType, decode_token
 from app.db.session import get_session
+from app.models.enums import UserRole
+from app.models.user import User
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+
+async def get_current_user(
+    session: SessionDep, token: Annotated[str, Depends(oauth2_scheme)]
+) -> User:
+    credentials_error = HTTPException(
+        status.HTTP_401_UNAUTHORIZED,
+        "Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        claims = decode_token(token)
+    except (ExpiredSignatureError, InvalidTokenError):
+        raise credentials_error
+
+    if claims.get("type") != TokenType.ACCESS.value:
+        raise credentials_error
+
+    user = await session.get(User, uuid.UUID(claims["sub"]))
+    if user is None:
+        raise credentials_error
+
+    return user
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def require_role(*roles: UserRole):
+    def dependency(user: CurrentUser) -> User:
+        if user.role not in roles:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Not enough permissions")
+        return user
+
+    return dependency
+
+
+RequireAgent = Annotated[User, Depends(require_role(UserRole.AGENT))]
