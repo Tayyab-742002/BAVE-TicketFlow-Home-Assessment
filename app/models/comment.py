@@ -6,7 +6,7 @@ from sqlalchemy import Column, DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.time import utcnow
-from app.models.enums import UserRole
+from app.models.enums import UserRole, pg_enum
 
 if TYPE_CHECKING:
     from app.models.ticket import Ticket
@@ -19,7 +19,9 @@ class Comment(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     ticket_id: uuid.UUID = Field(foreign_key="tickets.id", index=True)
     author_id: uuid.UUID = Field(foreign_key="users.id", index=True)
-    author_role: UserRole = Field(nullable=False)
+    author_role: UserRole = Field(
+        sa_column=Column(pg_enum(UserRole, "user_role"), nullable=False)
+    )
     body: str
 
     created_at: datetime = Field(

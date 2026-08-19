@@ -6,7 +6,7 @@ from sqlalchemy import Column, DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.time import utcnow
-from app.models.enums import TicketCategory, TicketPriority, TicketStatus
+from app.models.enums import TicketCategory, TicketPriority, TicketStatus, pg_enum
 
 if TYPE_CHECKING:
     from app.models.comment import Comment
@@ -19,9 +19,16 @@ class Ticket(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     title: str = Field(index=True)
     description: str
-    category: TicketCategory = Field(index=True)
-    priority: TicketPriority = Field(index=True)
-    status: TicketStatus = Field(default=TicketStatus.OPEN, index=True)
+    category: TicketCategory = Field(
+        sa_column=Column(pg_enum(TicketCategory, "ticket_category"), nullable=False, index=True)
+    )
+    priority: TicketPriority = Field(
+        sa_column=Column(pg_enum(TicketPriority, "ticket_priority"), nullable=False, index=True)
+    )
+    status: TicketStatus = Field(
+        default=TicketStatus.OPEN,
+        sa_column=Column(pg_enum(TicketStatus, "ticket_status"), nullable=False, index=True),
+    )
 
     customer_id: uuid.UUID = Field(foreign_key="users.id", index=True)
 
