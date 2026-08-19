@@ -3,14 +3,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.core.config import get_settings
+from app.db.session import engine
 
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # DB engine / Redis client startup + shutdown will hook in here (Phase 1 & 3)
     yield
+    await engine.dispose()
 
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
