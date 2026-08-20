@@ -1,0 +1,189 @@
+{
+  "name": "TicketFlow - Escalation & Resolution Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "ticket.created",
+                    "id": "31e215bf-0bf8-4188-9bff-9ce26ac08cbc"
+                  },
+                  {
+                    "leftValue": "={{ $json.body.data.priority }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "high",
+                    "id": "f8ee2a63-abd7-4097-ac26-3602ce239eab"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "escalate"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "ticket.status_changed",
+                    "id": "0292ae36-2614-4b6f-8fd9-ba4bfd8cf06e"
+                  },
+                  {
+                    "leftValue": "={{ $json.body.data.status }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "resolved",
+                    "id": "a215e36c-f369-4632-bfb1-426f3cc74774"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "resolved"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none",
+          "ignoreCase": true,
+          "allMatchingOutputs": false
+        }
+      },
+      "id": "b546db89-00f6-4e83-8c2b-e9944eaed2cf",
+      "name": "Route Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -48,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://webhook.site/057bf256-6d9c-4b75-bc10-324b37b4b418",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"text\": \"\\uD83D\\uDEA8 High priority ticket created: \" + $json.body.data.title, \"ticket_id\": $json.body.data.id, \"event\": $json.body.event } }}",
+        "options": {}
+      },
+      "id": "39251e4b-015c-4a2a-9d8d-6c2cced99bf2",
+      "name": "Notify Escalation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        192,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://webhook.site/057bf256-6d9c-4b75-bc10-324b37b4b418",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"text\": \"\\u2705 Ticket resolved: \" + $json.body.data.title, \"ticket_id\": $json.body.data.id, \"event\": $json.body.event } }}",
+        "options": {}
+      },
+      "id": "2aeb7b17-60b2-4f4d-8533-b7e8a03a3369",
+      "name": "Notify Resolution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        192,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ticketflow",
+        "options": {}
+      },
+      "id": "0ca8265f-7b37-434d-aed6-5ca4f7a44480",
+      "name": "TicketFlow Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -272,
+        -240
+      ],
+      "webhookId": "ticketflow-events"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Route Event": {
+      "main": [
+        [
+          {
+            "node": "Notify Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Resolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TicketFlow Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Route Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f79d9353-4c18-4f04-a2bd-5c0ac9ceacb6",
+  "meta": {
+    "instanceId": "3c10ddb0326c97f9221b115267136083036e8795629b4fbb303f7bf6de89c41b"
+  },
+  "nodeGroups": [],
+  "id": "effnCIfmktudGKGB",
+  "tags": []
+}
