@@ -1,8 +1,15 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import and_, func, or_
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, RedisDep, RequireAgent, SessionDep, VisibleTicket
+from app.api.deps import (
+    CurrentUser,
+    RedisDep,
+    RequireAgent,
+    SessionDep,
+    VisibleTicket,
+    rate_limit_by_user,
+)
 from app.models.enums import TicketCategory, TicketPriority, TicketStatus, UserRole
 from app.models.ticket import Ticket
 from app.schemas.ticket import (
@@ -26,7 +33,12 @@ from app.services.websocket_manager import manager
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 
-@router.post("", response_model=TicketRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=TicketRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit_by_user("ticket_create", limit=30, window_seconds=60))],
+)
 async def create_ticket(
     payload: TicketCreate,
     session: SessionDep,

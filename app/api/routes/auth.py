@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from jwt import ExpiredSignatureError, InvalidTokenError
 from sqlmodel import select
 
-from app.api.deps import SessionDep
+from app.api.deps import SessionDep, rate_limit_by_ip
 from app.core.security import (
     TokenType,
     create_access_token,
@@ -23,7 +23,12 @@ from app.schemas.user import UserRead
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit_by_ip("register", limit=10, window_seconds=60))],
+)
 async def register(payload: RegisterRequest, session: SessionDep) -> User:
     existing = await session.exec(select(User).where(User.email == payload.email))
     if existing.first() is not None:
@@ -42,7 +47,11 @@ async def register(payload: RegisterRequest, session: SessionDep) -> User:
     return user
 
 
-@router.post("/login", response_model=TokenPair)
+@router.post(
+    "/login",
+    response_model=TokenPair,
+    dependencies=[Depends(rate_limit_by_ip("login", limit=20, window_seconds=60))],
+)
 async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()], session: SessionDep
 ) -> TokenPair:

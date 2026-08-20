@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, WebSocket, status
+from fastapi import Depends, HTTPException, Request, WebSocket, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt import ExpiredSignatureError, InvalidTokenError
 from redis.asyncio import Redis
@@ -100,3 +100,42 @@ async def get_current_user_ws(websocket: WebSocket, session: AsyncSession) -> Us
         return None
 
     return user
+
+
+async def _check_rate_limit(redis: Redis, key: str, limit: int, window_seconds: int) -> None:
+    # INCR is atomic in Redis, so exactly one caller ever observes the transition
+    # to 1 for a given key — that caller is the only one who sets the window's TTL.
+    current = await redis.incr(key)
+    if current == 1:
+        await redis.expire(key, window_seconds)
+
+    if current > limit:
+        ttl = await redis.ttl(key)
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many requests, please try again later.",
+            headers={"Retry-After": str(max(ttl, 1))},
+        )
+
+
+def rate_limit_by_ip(scope: str, limit: int, window_seconds: int):
+    """For pre-auth endpoints (register/login) where there's no user identity yet
+    to key on — the only identifier available is the caller's IP."""
+
+    async def dependency(request: Request, redis: RedisDep) -> None:
+        client_ip = request.client.host if request.client else "unknown"
+        await _check_rate_limit(redis, f"ratelimit:{scope}:{client_ip}", limit, window_seconds)
+
+    return dependency
+
+
+def rate_limit_by_user(scope: str, limit: int, window_seconds: int):
+    """For authenticated endpoints — keyed per account rather than per IP, so one
+    shared office/NAT IP can't throttle every customer behind it together."""
+
+    async def dependency(current_user: CurrentUser, redis: RedisDep) -> None:
+        await _check_rate_limit(
+            redis, f"ratelimit:{scope}:{current_user.id}", limit, window_seconds
+        )
+
+    return dependency
