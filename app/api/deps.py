@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, WebSocket, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt import ExpiredSignatureError, InvalidTokenError
 from redis.asyncio import Redis
@@ -72,3 +72,31 @@ async def get_visible_ticket(
 
 
 VisibleTicket = Annotated[Ticket, Depends(get_visible_ticket)]
+
+
+async def get_current_user_ws(websocket: WebSocket, session: AsyncSession) -> User | None:
+    """Browser WebSocket clients can't set an Authorization header, so the access
+    token travels as a query param instead (?token=...). Closes the socket with a
+    4401 app-level code and returns None on any failure rather than raising —
+    there's no HTTP response to attach an error to once the handshake is underway."""
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4401)
+        return None
+
+    try:
+        claims = decode_token(token)
+    except (ExpiredSignatureError, InvalidTokenError):
+        await websocket.close(code=4401)
+        return None
+
+    if claims.get("type") != TokenType.ACCESS.value:
+        await websocket.close(code=4401)
+        return None
+
+    user = await session.get(User, uuid.UUID(claims["sub"]))
+    if user is None:
+        await websocket.close(code=4401)
+        return None
+
+    return user
