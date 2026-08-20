@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from sqlalchemy import and_, func, or_
 from sqlmodel import select
 
@@ -20,6 +20,7 @@ from app.services.cache_service import (
     set_cached,
 )
 from app.services.ticket_service import InvalidStatusTransition, apply_status_transition
+from app.services.webhook_service import dispatch_event
 from app.services.websocket_manager import manager
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -27,7 +28,11 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 @router.post("", response_model=TicketRead, status_code=status.HTTP_201_CREATED)
 async def create_ticket(
-    payload: TicketCreate, session: SessionDep, redis: RedisDep, current_user: CurrentUser
+    payload: TicketCreate,
+    session: SessionDep,
+    redis: RedisDep,
+    current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
 ) -> Ticket:
     if current_user.role != UserRole.CUSTOMER:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only customers can open tickets")
@@ -43,6 +48,11 @@ async def create_ticket(
     await session.commit()
     await session.refresh(ticket)
     await invalidate_ticket_caches(redis)
+
+    background_tasks.add_task(
+        dispatch_event, "ticket.created", TicketRead.model_validate(ticket).model_dump(mode="json")
+    )
+
     return ticket
 
 
@@ -116,6 +126,7 @@ async def change_ticket_status(
     session: SessionDep,
     redis: RedisDep,
     agent: RequireAgent,
+    background_tasks: BackgroundTasks,
 ) -> Ticket:
     try:
         apply_status_transition(ticket, payload.status)
@@ -127,13 +138,12 @@ async def change_ticket_status(
     await session.refresh(ticket)
     await invalidate_ticket_caches(redis)
 
-    event = {
-        "event": "ticket.status_changed",
-        "ticket_id": str(ticket.id),
-        "data": TicketRead.model_validate(ticket).model_dump(mode="json"),
-    }
-    await manager.broadcast_to_ticket(ticket.id, event)
-    await manager.broadcast_to_dashboard(event)
+    ticket_data = TicketRead.model_validate(ticket).model_dump(mode="json")
+    ws_event = {"event": "ticket.status_changed", "ticket_id": str(ticket.id), "data": ticket_data}
+    await manager.broadcast_to_ticket(ticket.id, ws_event)
+    await manager.broadcast_to_dashboard(ws_event)
+
+    background_tasks.add_task(dispatch_event, "ticket.status_changed", ticket_data)
 
     return ticket
 
