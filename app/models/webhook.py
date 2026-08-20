@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import JSON, Column, DateTime
+from sqlalchemy import JSON, Column, DateTime, Integer
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.time import utcnow
@@ -43,6 +43,13 @@ class WebhookDelivery(SQLModel, table=True):
     payload: dict[str, Any] = Field(sa_column=Column(JSON, nullable=False))
     response_status_code: int | None = None
     success: bool = Field(default=False, index=True)
+    # Same idempotency_key is reused across every retry of one logical event, so a
+    # receiver can dedupe; nullable because deliveries logged before this stretch
+    # goal predate the column. attempt_number defaults to 1 for that same reason.
+    idempotency_key: str | None = Field(default=None, index=True)
+    attempt_number: int = Field(
+        default=1, sa_column=Column(Integer, nullable=False, server_default="1")
+    )
 
     attempted_at: datetime = Field(
         default_factory=utcnow,

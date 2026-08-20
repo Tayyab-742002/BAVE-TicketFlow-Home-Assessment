@@ -41,4 +41,6 @@ class WebhookDeliveryRead(BaseModel):
     payload: dict[str, Any]
     response_status_code: int | None
     success: bool
+    idempotency_key: str | None
+    attempt_number: int
     attempted_at: datetime
