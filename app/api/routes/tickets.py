@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import and_, func, or_
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, RequireAgent, SessionDep, VisibleTicket
+from app.api.deps import CurrentUser, RedisDep, RequireAgent, SessionDep, VisibleTicket
 from app.models.enums import TicketCategory, TicketPriority, TicketStatus, UserRole
 from app.models.ticket import Ticket
 from app.schemas.ticket import (
@@ -12,6 +12,13 @@ from app.schemas.ticket import (
     TicketStatusUpdate,
     TicketUpdate,
 )
+from app.services.cache_service import (
+    TICKET_LIST_TTL_SECONDS,
+    build_ticket_list_cache_key,
+    get_cached,
+    invalidate_ticket_caches,
+    set_cached,
+)
 from app.services.ticket_service import InvalidStatusTransition, apply_status_transition
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
@@ -19,7 +26,7 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 @router.post("", response_model=TicketRead, status_code=status.HTTP_201_CREATED)
 async def create_ticket(
-    payload: TicketCreate, session: SessionDep, current_user: CurrentUser
+    payload: TicketCreate, session: SessionDep, redis: RedisDep, current_user: CurrentUser
 ) -> Ticket:
     if current_user.role != UserRole.CUSTOMER:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only customers can open tickets")
@@ -34,12 +41,14 @@ async def create_ticket(
     session.add(ticket)
     await session.commit()
     await session.refresh(ticket)
+    await invalidate_ticket_caches(redis)
     return ticket
 
 
 @router.get("", response_model=TicketListResponse)
 async def list_tickets(
     session: SessionDep,
+    redis: RedisDep,
     current_user: CurrentUser,
     status_filter: TicketStatus | None = Query(default=None, alias="status"),
     priority: TicketPriority | None = Query(default=None),
@@ -48,6 +57,20 @@ async def list_tickets(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> TicketListResponse:
+    cache_key = build_ticket_list_cache_key(
+        role=current_user.role.value,
+        customer_id=str(current_user.id) if current_user.role == UserRole.CUSTOMER else None,
+        status=status_filter,
+        priority=priority,
+        category=category,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+    cached = await get_cached(redis, cache_key)
+    if cached is not None:
+        return TicketListResponse.model_validate(cached)
+
     conditions = []
     if current_user.role == UserRole.CUSTOMER:
         conditions.append(Ticket.customer_id == current_user.id)
@@ -75,7 +98,9 @@ async def list_tickets(
         .limit(page_size)
     )
 
-    return TicketListResponse(items=result.all(), total=total, page=page, page_size=page_size)
+    response = TicketListResponse(items=result.all(), total=total, page=page, page_size=page_size)
+    await set_cached(redis, cache_key, response.model_dump(mode="json"), TICKET_LIST_TTL_SECONDS)
+    return response
 
 
 @router.get("/{ticket_id}", response_model=TicketRead)
@@ -85,7 +110,11 @@ async def get_ticket(ticket: VisibleTicket) -> Ticket:
 
 @router.patch("/{ticket_id}/status", response_model=TicketRead)
 async def change_ticket_status(
-    payload: TicketStatusUpdate, ticket: VisibleTicket, session: SessionDep, agent: RequireAgent
+    payload: TicketStatusUpdate,
+    ticket: VisibleTicket,
+    session: SessionDep,
+    redis: RedisDep,
+    agent: RequireAgent,
 ) -> Ticket:
     try:
         apply_status_transition(ticket, payload.status)
@@ -95,12 +124,17 @@ async def change_ticket_status(
     session.add(ticket)
     await session.commit()
     await session.refresh(ticket)
+    await invalidate_ticket_caches(redis)
     return ticket
 
 
 @router.patch("/{ticket_id}", response_model=TicketRead)
 async def update_ticket(
-    payload: TicketUpdate, ticket: VisibleTicket, session: SessionDep, current_user: CurrentUser
+    payload: TicketUpdate,
+    ticket: VisibleTicket,
+    session: SessionDep,
+    redis: RedisDep,
+    current_user: CurrentUser,
 ) -> Ticket:
     if current_user.role != UserRole.CUSTOMER:
         raise HTTPException(
@@ -116,11 +150,14 @@ async def update_ticket(
     session.add(ticket)
     await session.commit()
     await session.refresh(ticket)
+    await invalidate_ticket_caches(redis)
     return ticket
 
 
 @router.delete("/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_ticket(ticket: VisibleTicket, session: SessionDep, current_user: CurrentUser) -> None:
+async def delete_ticket(
+    ticket: VisibleTicket, session: SessionDep, redis: RedisDep, current_user: CurrentUser
+) -> None:
     if current_user.role != UserRole.CUSTOMER:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Only the customer who owns a ticket can delete it"
@@ -131,3 +168,4 @@ async def delete_ticket(ticket: VisibleTicket, session: SessionDep, current_user
 
     await session.delete(ticket)
     await session.commit()
+    await invalidate_ticket_caches(redis)
