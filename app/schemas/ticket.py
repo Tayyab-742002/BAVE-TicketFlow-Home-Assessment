@@ -7,6 +7,19 @@ from app.models.enums import TicketCategory, TicketPriority, TicketStatus
 
 
 class TicketCreate(BaseModel):
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "title": "Can't access my invoice",
+                    "description": "The invoice PDF link in my email returns a 404.",
+                    "category": "billing",
+                    "priority": "high",
+                }
+            ]
+        }
+    }
+
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1)
     category: TicketCategory
@@ -14,6 +27,8 @@ class TicketCreate(BaseModel):
 
 
 class TicketUpdate(BaseModel):
+    model_config = {"json_schema_extra": {"examples": [{"priority": "medium"}]}}
+
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, min_length=1)
     category: TicketCategory | None = None
@@ -21,6 +36,8 @@ class TicketUpdate(BaseModel):
 
 
 class TicketStatusUpdate(BaseModel):
+    model_config = {"json_schema_extra": {"examples": [{"status": "in_progress"}]}}
+
     status: TicketStatus
 
 

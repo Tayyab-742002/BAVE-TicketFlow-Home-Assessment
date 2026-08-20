@@ -28,6 +28,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     response_model=UserRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(rate_limit_by_ip("register", limit=10, window_seconds=60))],
+    summary="Register a new Customer account",
+    description="Always creates a Customer, regardless of any role sent in the "
+    "request — the Agent account is seeded separately, not self-served. "
+    "Rate-limited per IP (10/min).",
 )
 async def register(payload: RegisterRequest, session: SessionDep) -> User:
     existing = await session.exec(select(User).where(User.email == payload.email))
@@ -51,6 +55,11 @@ async def register(payload: RegisterRequest, session: SessionDep) -> User:
     "/login",
     response_model=TokenPair,
     dependencies=[Depends(rate_limit_by_ip("login", limit=20, window_seconds=60))],
+    summary="Log in and receive an access + refresh token pair",
+    description="OAuth2 password flow — put your email in the `username` field. "
+    "Use the **Authorize** button above rather than calling this directly; it "
+    "wires the resulting token into every other request automatically. "
+    "Rate-limited per IP (20/min).",
 )
 async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()], session: SessionDep
@@ -66,7 +75,14 @@ async def login(
     )
 
 
-@router.post("/refresh", response_model=AccessToken)
+@router.post(
+    "/refresh",
+    response_model=AccessToken,
+    summary="Exchange a refresh token for a new access token",
+    description="Rejects an access token used here by design — only a genuine "
+    "refresh token (`type: \"refresh\"` claim) is accepted, to stop the two "
+    "token kinds from being used interchangeably.",
+)
 async def refresh(payload: RefreshRequest, session: SessionDep) -> AccessToken:
     try:
         claims = decode_token(payload.refresh_token)

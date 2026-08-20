@@ -8,6 +8,17 @@ ALLOWED_EVENT_TYPES = {"ticket.created", "ticket.status_changed"}
 
 
 class WebhookRegistrationCreate(BaseModel):
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "url": "https://webhook.site/your-unique-id",
+                    "event_types": ["ticket.created", "ticket.status_changed"],
+                }
+            ]
+        }
+    }
+
     url: HttpUrl
     event_types: list[str] = Field(min_length=1)
 

@@ -15,7 +15,15 @@ from app.schemas.webhook import (
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
-@router.post("", response_model=WebhookRegistrationRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=WebhookRegistrationRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Register a webhook (Agent-only)",
+    description="Generates a per-endpoint secret (returned once here, and on "
+    "every subsequent read) used to HMAC-sign every delivery to this URL. Any "
+    "Agent can view/manage any registration — not scoped to whoever created it.",
+)
 async def register_webhook(
     payload: WebhookRegistrationCreate, session: SessionDep, agent: RequireAgent
 ) -> WebhookRegistration:
@@ -31,7 +39,11 @@ async def register_webhook(
     return webhook
 
 
-@router.get("", response_model=list[WebhookRegistrationRead])
+@router.get(
+    "",
+    response_model=list[WebhookRegistrationRead],
+    summary="List all webhook registrations (Agent-only)",
+)
 async def list_webhooks(session: SessionDep, agent: RequireAgent) -> list[WebhookRegistration]:
     result = await session.exec(
         select(WebhookRegistration).order_by(WebhookRegistration.created_at.desc())
@@ -39,7 +51,12 @@ async def list_webhooks(session: SessionDep, agent: RequireAgent) -> list[Webhoo
     return result.all()
 
 
-@router.delete("/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{webhook_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a webhook registration (Agent-only)",
+    description="Cascades to its delivery log.",
+)
 async def delete_webhook(webhook_id: uuid.UUID, session: SessionDep, agent: RequireAgent) -> None:
     webhook = await session.get(WebhookRegistration, webhook_id)
     if webhook is None:
@@ -48,7 +65,14 @@ async def delete_webhook(webhook_id: uuid.UUID, session: SessionDep, agent: Requ
     await session.commit()
 
 
-@router.get("/{webhook_id}/deliveries", response_model=list[WebhookDeliveryRead])
+@router.get(
+    "/{webhook_id}/deliveries",
+    response_model=list[WebhookDeliveryRead],
+    summary="View delivery attempts for one webhook (Agent-only)",
+    description="One row per attempt, including retries — retries of the same "
+    "logical event share an `idempotency_key` and increment `attempt_number`. "
+    "Newest first.",
+)
 async def list_webhook_deliveries(
     webhook_id: uuid.UUID, session: SessionDep, agent: RequireAgent
 ) -> list[WebhookDelivery]:

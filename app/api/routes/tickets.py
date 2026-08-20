@@ -38,6 +38,9 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
     response_model=TicketRead,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(rate_limit_by_user("ticket_create", limit=30, window_seconds=60))],
+    summary="Open a new ticket",
+    description="Customer-only. Status always starts at `open`. Fires the "
+    "`ticket.created` webhook and rate-limits per account (30/min).",
 )
 async def create_ticket(
     payload: TicketCreate,
@@ -68,7 +71,14 @@ async def create_ticket(
     return ticket
 
 
-@router.get("", response_model=TicketListResponse)
+@router.get(
+    "",
+    response_model=TicketListResponse,
+    summary="List tickets (filtered, searched, paginated)",
+    description="Customers see only their own tickets; Agents see every ticket. "
+    "Results are cached in Redis for 30s per unique combination of filters/page "
+    "and caller, invalidated immediately on any ticket write.",
+)
 async def list_tickets(
     session: SessionDep,
     redis: RedisDep,
@@ -126,12 +136,26 @@ async def list_tickets(
     return response
 
 
-@router.get("/{ticket_id}", response_model=TicketRead)
+@router.get(
+    "/{ticket_id}",
+    response_model=TicketRead,
+    summary="Get a single ticket",
+    description="404 (not 403) if a Customer requests a ticket they don't own — "
+    "the API doesn't confirm or deny existence of tickets outside the caller's access.",
+)
 async def get_ticket(ticket: VisibleTicket) -> Ticket:
     return ticket
 
 
-@router.patch("/{ticket_id}/status", response_model=TicketRead)
+@router.patch(
+    "/{ticket_id}/status",
+    response_model=TicketRead,
+    summary="Move a ticket's status (Agent-only)",
+    description="Strictly sequential and forward-only: "
+    "`open → in_progress → resolved → closed`. No skipping a step, no reopening. "
+    "Any other requested transition returns `409`. "
+    "Broadcasts a WebSocket event and fires the `ticket.status_changed` webhook.",
+)
 async def change_ticket_status(
     payload: TicketStatusUpdate,
     ticket: VisibleTicket,
@@ -160,7 +184,14 @@ async def change_ticket_status(
     return ticket
 
 
-@router.patch("/{ticket_id}", response_model=TicketRead)
+@router.patch(
+    "/{ticket_id}",
+    response_model=TicketRead,
+    summary="Edit a ticket's content (Customer, own ticket, while Open)",
+    description="Only the owning Customer may edit, and only while status is "
+    "`open` — anything else returns `409`. Partial update: omitted fields are "
+    "left unchanged.",
+)
 async def update_ticket(
     payload: TicketUpdate,
     ticket: VisibleTicket,
@@ -186,7 +217,13 @@ async def update_ticket(
     return ticket
 
 
-@router.delete("/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{ticket_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a ticket (Customer, own ticket, while Open)",
+    description="Same ownership/Open-only rule as editing. Cascades to the "
+    "ticket's comments.",
+)
 async def delete_ticket(
     ticket: VisibleTicket, session: SessionDep, redis: RedisDep, current_user: CurrentUser
 ) -> None:

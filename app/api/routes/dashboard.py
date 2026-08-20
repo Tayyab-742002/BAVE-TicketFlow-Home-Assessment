@@ -16,7 +16,14 @@ from app.services.cache_service import (
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
-@router.get("/stats", response_model=DashboardStats)
+@router.get(
+    "/stats",
+    response_model=DashboardStats,
+    summary="Agent dashboard counts (Agent-only)",
+    description="Total ticket count plus a breakdown by status and priority — "
+    "every enum value is always present, with `0` for anything with no tickets. "
+    "Cached in Redis for 60s, invalidated immediately on any ticket write.",
+)
 async def get_dashboard_stats(
     session: SessionDep, redis: RedisDep, agent: RequireAgent
 ) -> DashboardStats:
