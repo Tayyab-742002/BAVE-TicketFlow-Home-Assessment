@@ -74,6 +74,16 @@ Full interactive docs (with request/response schemas, examples, and a working **
 
 **WebSocket auth differs from REST**: browsers can't set custom headers on a WS handshake, so the access token travels as a query parameter instead: `ws://localhost:8000/ws/tickets/{id}?token=<access_token>`.
 
+## Diagrams
+
+**Entity-relationship diagram** users, tickets, comments, webhook registrations, and delivery logs, with FKs and constraints:
+
+![ERD](assets/diagrams/erd.png)
+
+**Ticket status workflow** strictly forward, one step at a time (see *Key decisions* below for why):
+
+![Ticket status workflow](assets/diagrams/ticket-workflow.png)
+
 ## Architecture & key decisions
 
 Layered structure: `api/routes` (HTTP-facing) → `services/` (business logic, framework-agnostic) → `models/` (SQLModel tables) / `schemas/` (Pydantic request/response, kept separate from DB models). `api/deps.py` holds every FastAPI dependency (session/Redis injection, auth, role gates, resource-visibility checks) as reusable, composable building blocks.
