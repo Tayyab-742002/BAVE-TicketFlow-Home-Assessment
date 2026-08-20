@@ -1,0 +1,131 @@
+{
+  "name": "TicketFlow - Escalation & Resolution Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ticketflow",
+        "responseMode": "onReceived",
+        "responseData": "success",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4a1a-8b1a-000000000001",
+      "name": "TicketFlow Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [240, 300],
+      "webhookId": "ticketflow-events"
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "operator": { "type": "string", "operation": "equals" },
+                    "rightValue": "ticket.created"
+                  },
+                  {
+                    "leftValue": "={{ $json.body.data.priority }}",
+                    "operator": { "type": "string", "operation": "equals" },
+                    "rightValue": "high"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "escalate"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "operator": { "type": "string", "operation": "equals" },
+                    "rightValue": "ticket.status_changed"
+                  },
+                  {
+                    "leftValue": "={{ $json.body.data.status }}",
+                    "operator": { "type": "string", "operation": "equals" },
+                    "rightValue": "resolved"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "resolved"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none",
+          "ignoreCase": true,
+          "allMatchingOutputs": false
+        }
+      },
+      "id": "a1b2c3d4-0002-4a1a-8b1a-000000000002",
+      "name": "Route Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://webhook.site/REPLACE_WITH_YOUR_URL",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"text\": \"\\uD83D\\uDEA8 High priority ticket created: \" + $json.body.data.title, \"ticket_id\": $json.body.data.id, \"event\": $json.body.event } }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-4a1a-8b1a-000000000003",
+      "name": "Notify Escalation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [700, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://webhook.site/REPLACE_WITH_YOUR_URL",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"text\": \"\\u2705 Ticket resolved: \" + $json.body.data.title, \"ticket_id\": $json.body.data.id, \"event\": $json.body.event } }}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4a1a-8b1a-000000000004",
+      "name": "Notify Resolution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [700, 380]
+    }
+  ],
+  "connections": {
+    "TicketFlow Webhook": {
+      "main": [[{ "node": "Route Event", "type": "main", "index": 0 }]]
+    },
+    "Route Event": {
+      "main": [
+        [{ "node": "Notify Escalation", "type": "main", "index": 0 }],
+        [{ "node": "Notify Resolution", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}
