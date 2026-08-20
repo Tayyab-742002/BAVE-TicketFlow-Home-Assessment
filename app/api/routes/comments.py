@@ -4,6 +4,7 @@ from sqlmodel import select
 from app.api.deps import CurrentUser, SessionDep, VisibleTicket
 from app.models.comment import Comment
 from app.schemas.comment import CommentCreate, CommentRead
+from app.services.websocket_manager import manager
 
 router = APIRouter(prefix="/tickets/{ticket_id}/comments", tags=["comments"])
 
@@ -21,6 +22,15 @@ async def create_comment(
     session.add(comment)
     await session.commit()
     await session.refresh(comment)
+
+    event = {
+        "event": "comment.created",
+        "ticket_id": str(ticket.id),
+        "data": CommentRead.model_validate(comment).model_dump(mode="json"),
+    }
+    await manager.broadcast_to_ticket(ticket.id, event)
+    await manager.broadcast_to_dashboard(event)
+
     return comment
 
 

@@ -20,6 +20,7 @@ from app.services.cache_service import (
     set_cached,
 )
 from app.services.ticket_service import InvalidStatusTransition, apply_status_transition
+from app.services.websocket_manager import manager
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
@@ -125,6 +126,15 @@ async def change_ticket_status(
     await session.commit()
     await session.refresh(ticket)
     await invalidate_ticket_caches(redis)
+
+    event = {
+        "event": "ticket.status_changed",
+        "ticket_id": str(ticket.id),
+        "data": TicketRead.model_validate(ticket).model_dump(mode="json"),
+    }
+    await manager.broadcast_to_ticket(ticket.id, event)
+    await manager.broadcast_to_dashboard(event)
+
     return ticket
 
 
