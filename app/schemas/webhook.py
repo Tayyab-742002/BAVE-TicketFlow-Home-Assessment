@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
@@ -29,3 +30,15 @@ class WebhookRegistrationRead(BaseModel):
     event_types: list[str]
     is_active: bool
     created_at: datetime
+
+
+class WebhookDeliveryRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    webhook_registration_id: uuid.UUID
+    event_type: str
+    payload: dict[str, Any]
+    response_status_code: int | None
+    success: bool
+    attempted_at: datetime

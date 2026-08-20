@@ -5,8 +5,12 @@ from fastapi import APIRouter, HTTPException, status
 from sqlmodel import select
 
 from app.api.deps import RequireAgent, SessionDep
-from app.models.webhook import WebhookRegistration
-from app.schemas.webhook import WebhookRegistrationCreate, WebhookRegistrationRead
+from app.models.webhook import WebhookDelivery, WebhookRegistration
+from app.schemas.webhook import (
+    WebhookDeliveryRead,
+    WebhookRegistrationCreate,
+    WebhookRegistrationRead,
+)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -42,3 +46,19 @@ async def delete_webhook(webhook_id: uuid.UUID, session: SessionDep, agent: Requ
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Webhook registration not found")
     await session.delete(webhook)
     await session.commit()
+
+
+@router.get("/{webhook_id}/deliveries", response_model=list[WebhookDeliveryRead])
+async def list_webhook_deliveries(
+    webhook_id: uuid.UUID, session: SessionDep, agent: RequireAgent
+) -> list[WebhookDelivery]:
+    webhook = await session.get(WebhookRegistration, webhook_id)
+    if webhook is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Webhook registration not found")
+
+    result = await session.exec(
+        select(WebhookDelivery)
+        .where(WebhookDelivery.webhook_registration_id == webhook_id)
+        .order_by(WebhookDelivery.attempted_at.desc())
+    )
+    return result.all()
