@@ -19,16 +19,20 @@ docker compose up --build
 
 That's it. On container start, the `api` service automatically runs pending Alembic migrations and seeds the one Agent account  both steps are idempotent, so restarting or rebuilding never duplicates anything or fails on a second run.
 
-Once it's up:
+Once it's up, these are browser-loadable:
 
 | Service | URL |
 |---|---|
 | API + Swagger docs | http://localhost:8000/docs |
 | API (raw OpenAPI JSON) | http://localhost:8000/openapi.json |
 | Health check | http://localhost:8000/health |
-| Postgres | localhost:5432 |
-| Redis | localhost:6379 |
 | n8n (stretch goal) | http://localhost:5678 |
+
+Postgres (`localhost:5432`) and Redis (`localhost:6379`) are also exposed on the
+host, but they speak their own wire protocols, not HTTP — don't open them in a
+browser, connect with a DB client instead (`psql`, TablePlus, RedisInsight, or
+just `docker compose exec postgres psql -U ticketflow -d ticketflow` / `docker
+compose exec redis redis-cli`).
 
 ## Environment variables
 

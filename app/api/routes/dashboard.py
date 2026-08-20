@@ -20,7 +20,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
     "/stats",
     response_model=DashboardStats,
     summary="Agent dashboard counts (Agent-only)",
-    description="Total ticket count plus a breakdown by status and priority — "
+    description="Total ticket count plus a breakdown by status and priority: "
     "every enum value is always present, with `0` for anything with no tickets. "
     "Cached in Redis for 60s, invalidated immediately on any ticket write.",
 )

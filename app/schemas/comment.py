@@ -8,7 +8,7 @@ from app.models.enums import UserRole
 
 class CommentCreate(BaseModel):
     model_config = {
-        "json_schema_extra": {"examples": [{"body": "Thanks for reporting — looking into this now."}]}
+        "json_schema_extra": {"examples": [{"body": "Thanks for reporting, looking into this now."}]}
     }
 
     body: str = Field(min_length=1)

@@ -1,20 +1,20 @@
 API_DESCRIPTION = """
-Real-time support-ticketing backend — Bave technical assessment.
+Real-time support-ticketing backend for Bave's technical assessment.
 
-**Auth** — JWT access + refresh tokens. Click **Authorize** (top right) after
+**Auth**: JWT access + refresh tokens. Click **Authorize** (top right) after
 `POST /auth/login`; it uses the OAuth2 password flow, so put your email in the
 `username` field. The button then attaches your access token to every
 "Try it out" call automatically.
 
-**Roles** — `customer` (sees/manages only their own tickets) and `agent` (sees
-and acts on all tickets). One agent account is seeded at startup — credentials
+**Roles**: `customer` (sees/manages only their own tickets) and `agent` (sees
+and acts on all tickets). One agent account is seeded at startup; credentials
 are in the README, not here.
 
-**WebSockets** — browsers can't set custom headers on a WebSocket handshake, so
+**WebSockets**: browsers can't set custom headers on a WebSocket handshake, so
 the access token travels as a query param instead:
 `ws://.../ws/tickets/{ticket_id}?token=<access_token>`.
 
-**Webhooks** — registered endpoints receive an HMAC-SHA256 signature in the
+**Webhooks**: registered endpoints receive an HMAC-SHA256 signature in the
 `X-TicketFlow-Signature` header (`sha256=<hex>`), computed over the exact raw
 JSON body with that registration's own secret. Failed deliveries retry with
 exponential backoff; every attempt (success or failure) is logged.
@@ -23,7 +23,7 @@ exponential backoff; every attempt (success or failure) is logged.
 TAGS_METADATA = [
     {
         "name": "auth",
-        "description": "Registration, login, and token refresh. Registration always creates a Customer — the Agent account is seeded, not self-served.",
+        "description": "Registration, login, and token refresh. Registration always creates a Customer; the Agent account is seeded, not self-served.",
     },
     {
         "name": "tickets",
@@ -43,6 +43,6 @@ TAGS_METADATA = [
     },
     {
         "name": "websocket",
-        "description": "Live ticket/dashboard event channels. See the top-level description for how auth works here — it differs from the REST endpoints.",
+        "description": "Live ticket/dashboard event channels. See the top-level description for how auth works here; it differs from the REST endpoints.",
     },
 ]

@@ -140,7 +140,7 @@ async def list_tickets(
     "/{ticket_id}",
     response_model=TicketRead,
     summary="Get a single ticket",
-    description="404 (not 403) if a Customer requests a ticket they don't own — "
+    description="404 (not 403) if a Customer requests a ticket they don't own: "
     "the API doesn't confirm or deny existence of tickets outside the caller's access.",
 )
 async def get_ticket(ticket: VisibleTicket) -> Ticket:
@@ -189,7 +189,7 @@ async def change_ticket_status(
     response_model=TicketRead,
     summary="Edit a ticket's content (Customer, own ticket, while Open)",
     description="Only the owning Customer may edit, and only while status is "
-    "`open` — anything else returns `409`. Partial update: omitted fields are "
+    "`open`; anything else returns `409`. Partial update: omitted fields are "
     "left unchanged.",
 )
 async def update_ticket(

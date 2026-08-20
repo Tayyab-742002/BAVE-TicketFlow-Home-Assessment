@@ -22,7 +22,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
     summary="Register a webhook (Agent-only)",
     description="Generates a per-endpoint secret (returned once here, and on "
     "every subsequent read) used to HMAC-sign every delivery to this URL. Any "
-    "Agent can view/manage any registration — not scoped to whoever created it.",
+    "Agent can view/manage any registration, not scoped to whoever created it.",
 )
 async def register_webhook(
     payload: WebhookRegistrationCreate, session: SessionDep, agent: RequireAgent
@@ -69,7 +69,7 @@ async def delete_webhook(webhook_id: uuid.UUID, session: SessionDep, agent: Requ
     "/{webhook_id}/deliveries",
     response_model=list[WebhookDeliveryRead],
     summary="View delivery attempts for one webhook (Agent-only)",
-    description="One row per attempt, including retries — retries of the same "
+    description="One row per attempt, including retries: retries of the same "
     "logical event share an `idempotency_key` and increment `attempt_number`. "
     "Newest first.",
 )
